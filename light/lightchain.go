@@ -95,10 +95,8 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 	if bc.genesisBlock == nil {
 		return nil, core.ErrNoGenesis
 	}
-	if bc.genesisBlock.Hash() == params.MainnetGenesisHash {
-		// add trusted CHT
-		WriteTrustedCht(bc.chainDb, TrustedCht{Number: 805, Root: common.HexToHash("85e4286fe0a730390245c49de8476977afdae0eb5530b277f62a52b12313d50f")})
-		log.Info("Added trusted CHT for mainnet")
+	if cp, ok := trustedCheckpoints[bc.genesisBlock.Hash()]; ok {
+		bc.addTrustedCheckpoint(cp)
 	}
 
 	if err := bc.loadLastState(); err != nil {
@@ -113,6 +111,22 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 		}
 	}
 	return bc, nil
+}
+
+// addTrustedCheckpoint adds a trusted checkpoint to the blockchain
+func (self *LightChain) addTrustedCheckpoint(cp trustedCheckpoint) {
+	if self.odr.ChtIndexer() != nil {
+		StoreChtRoot(self.chainDb, cp.sectionIdx, cp.sectionHead, cp.chtRoot)
+		self.odr.ChtIndexer().AddKnownSectionHead(cp.sectionIdx, cp.sectionHead)
+	}
+	if self.odr.BloomTrieIndexer() != nil {
+		StoreBloomTrieRoot(self.chainDb, cp.sectionIdx, cp.sectionHead, cp.bloomTrieRoot)
+		self.odr.BloomTrieIndexer().AddKnownSectionHead(cp.sectionIdx, cp.sectionHead)
+	}
+	if self.odr.BloomIndexer() != nil {
+		self.odr.BloomIndexer().AddKnownSectionHead(cp.sectionIdx, cp.sectionHead)
+	}
+	log.Info("Added trusted checkpoint", "chain name", cp.name)
 }
 
 func (self *LightChain) getProcInterrupt() bool {
@@ -252,8 +266,8 @@ func (self *LightChain) GetBodyRLP(ctx context.Context, hash common.Hash) (rlp.R
 
 // HasBlock checks if a block is fully present in the database or not, caching
 // it if present.
-func (bc *LightChain) HasBlock(hash common.Hash) bool {
-	blk, _ := bc.GetBlockByHash(NoOdr, hash)
+func (bc *LightChain) HasBlock(hash common.Hash, number uint64) bool {
+	blk, _ := bc.GetBlock(NoOdr, hash, number)
 	return blk != nil
 }
 
@@ -418,8 +432,8 @@ func (self *LightChain) GetHeaderByHash(hash common.Hash) *types.Header {
 
 // HasHeader checks if a block header is present in the database or not, caching
 // it if present.
-func (bc *LightChain) HasHeader(hash common.Hash) bool {
-	return bc.hc.HasHeader(hash)
+func (bc *LightChain) HasHeader(hash common.Hash, number uint64) bool {
+	return bc.hc.HasHeader(hash, number)
 }
 
 // GetBlockHashesFromHash retrieves a number of block hashes starting at a given
@@ -444,10 +458,13 @@ func (self *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64)
 }
 
 func (self *LightChain) SyncCht(ctx context.Context) bool {
+	if self.odr.ChtIndexer() == nil {
+		return false
+	}
 	headNum := self.CurrentHeader().Number.Uint64()
-	cht := GetTrustedCht(self.chainDb)
-	if headNum+1 < cht.Number*ChtFrequency {
-		num := cht.Number*ChtFrequency - 1
+	chtCount, _, _ := self.odr.ChtIndexer().Sections()
+	if headNum+1 < chtCount*ChtFrequency {
+		num := chtCount*ChtFrequency - 1
 		header, err := GetHeaderByNumber(ctx, self.odr, num)
 		if header != nil && err == nil {
 			self.mu.Lock()
