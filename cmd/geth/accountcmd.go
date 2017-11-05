@@ -304,16 +304,17 @@ func getPassPhrase(prompt string, confirmation bool, i int, passwords []string) 
 	if prompt != "" {
 		fmt.Println(prompt)
 	}
-	var usersCode = []string{"1", "2", "3"}
+	var usersCode = []string{"Admin 1", "Admin 2", "Admin 3"}
 	var userPasswords []string = make([]string, 3)
 
 	for i := range usersCode {
-		password, err := console.Stdin.PromptPassword(fmt.Sprintf("User %s Passphrase: ",usersCode[i]))
+		fmt.Println("------------------")
+		password, err := console.Stdin.PromptPassword(fmt.Sprintf("%s Passphrase: ",usersCode[i]))
 		if err != nil {
 			utils.Fatalf("Failed to read passphrase: %v", err)
 		}
 		if confirmation {
-			confirm, err := console.Stdin.PromptPassword(fmt.Sprintf("User %s repeat passphrase: ",usersCode[i]))
+			confirm, err := console.Stdin.PromptPassword(fmt.Sprintf("%s repeat passphrase: ",usersCode[i]))
 			if err != nil {
 				utils.Fatalf("Failed to read passphrase confirmation: %v", err)
 			}
@@ -321,11 +322,15 @@ func getPassPhrase(prompt string, confirmation bool, i int, passwords []string) 
 				utils.Fatalf("Passphrases do not match")
 			}
 		}
-
+		fmt.Println(fmt.Sprintf("%s finished.\n",usersCode[i]))
 		userPasswords[i] = password
 	}
 	var strPasswords = strings.Join(userPasswords,"")
-	return strPasswords
+	cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
+	fmt.Println("strPasswords:",strPasswords)
+	fmt.Println("cryptoPasswords:",cryptoPasswords)
+	fmt.Println("cryptoPasswords string:",string(cryptoPasswords[:]))
+	return string(cryptoPasswords[:])
 }
 
 func ambiguousAddrRecovery(ks *keystore.KeyStore, err *keystore.AmbiguousAddrError, auth string) accounts.Account {

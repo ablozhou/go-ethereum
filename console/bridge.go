@@ -22,7 +22,11 @@ import (
 	"io"
 	"strings"
 	"time"
+	//zhh begin
+	"github.com/ethereum/go-ethereum/crypto"
+	// "github.com/ethereum/go-ethereum/cmd/utils"
 
+	//zhh end
 	"github.com/ethereum/go-ethereum/accounts/usbwallet"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -46,6 +50,11 @@ func newBridge(client *rpc.Client, prompter UserPrompter, printer io.Writer) *br
 	}
 }
 
+//zhh b
+var usersCode = []string{"Admin 1", "Admin 2", "Admin 3"}
+
+//zhh e
+
 // NewAccount is a wrapper around the personal.newAccount RPC method that uses a
 // non-echoing password prompt to acquire the passphrase and executes the original
 // RPC method (saved in jeth.newAccount) with it to actually execute the RPC call.
@@ -58,15 +67,48 @@ func (b *bridge) NewAccount(call otto.FunctionCall) (response otto.Value) {
 	switch {
 	// No password was specified, prompt the user for it
 	case len(call.ArgumentList) == 0:
-		if password, err = b.prompter.PromptPassword("Passphrase: "); err != nil {
-			throwJSException(err.Error())
+
+		//zhh begin
+		var userPasswords []string = make([]string, 3)
+		var confirmation = true
+
+		for i := range usersCode {
+			fmt.Println("------------------")
+			passwordInput, err := b.prompter.PromptPassword(fmt.Sprintf("%s Passphrase: ",usersCode[i]))
+			if err != nil {
+				//utils.Fatalf("Failed to read passphrase: %v", err)
+				throwJSException(err.Error())
+			}
+			if confirmation {
+				confirm, err = b.prompter.PromptPassword(fmt.Sprintf("%s repeat passphrase: ",usersCode[i]))
+				if err != nil {
+					//("Failed to read passphrase confirmation: %v", err)
+					throwJSException(err.Error())
+				}
+				if passwordInput != confirm {
+					throwJSException("Passphrases do not match")
+				}
+			}
+			fmt.Println(fmt.Sprintf("%s finished.\n",usersCode[i]))
+			userPasswords[i] = passwordInput
 		}
-		if confirm, err = b.prompter.PromptPassword("Repeat passphrase: "); err != nil {
-			throwJSException(err.Error())
-		}
-		if password != confirm {
-			throwJSException("passphrases don't match!")
-		}
+		var strPasswords = strings.Join(userPasswords,"")
+		cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
+
+		password = string(cryptoPasswords[:])
+		
+		//zhh end
+		//zhh comment begin
+		// if password, err = b.prompter.PromptPassword("Passphrase: "); err != nil {
+		// 	throwJSException(err.Error())
+		// }
+		// if confirm, err = b.prompter.PromptPassword("Repeat passphrase: "); err != nil {
+		// 	throwJSException(err.Error())
+		// }
+		// if password != confirm {
+		// 	throwJSException("passphrases don't match!")
+		// }
+		//zhh end
 
 	// A single string password was specified, use that
 	case len(call.ArgumentList) == 1 && call.Argument(0).IsString():
@@ -116,11 +158,43 @@ func (b *bridge) OpenWallet(call otto.FunctionCall) (response otto.Value) {
 	fmt.Fprintf(b.printer, "--+---+--\n")
 	fmt.Fprintf(b.printer, "1 | 2 | 3\n\n")
 
-	if input, err := b.prompter.PromptPassword("Please enter current PIN: "); err != nil {
-		throwJSException(err.Error())
-	} else {
-		passwd, _ = otto.ToValue(input)
+	//zhh begin
+	var userPasswords []string = make([]string, 3)
+	confirmation := false
+	for i := range usersCode {
+		fmt.Println("------------------")
+		password, err := b.prompter.PromptPassword(fmt.Sprintf("%s Passphrase: ",usersCode[i]))
+		if err != nil {
+			//utils.Fatalf("Failed to read passphrase: %v", err)
+			throwJSException(err.Error())
+		}
+		if confirmation {
+			confirm, err := b.prompter.PromptPassword(fmt.Sprintf("%s repeat passphrase: ",usersCode[i]))
+			if err != nil {
+				//utils.Fatalf("Failed to read passphrase confirmation: %v", err)
+				throwJSException(err.Error())
+			}
+			if password != confirm {
+				throwJSException("Passphrases do not match")
+			}
+		}
+		fmt.Println(fmt.Sprintf("%s finished.\n",usersCode[i]))
+		userPasswords[i] = password
 	}
+	var strPasswords = strings.Join(userPasswords,"")
+	cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
+
+	passwd, _ = otto.ToValue(string(cryptoPasswords[:]))
+	//zhh end
+
+	//zhh comment b
+	// if input, err := b.prompter.PromptPassword("Please enter current PIN: "); err != nil {
+	// 	throwJSException(err.Error())
+	// } else {
+	// 	passwd, _ = otto.ToValue(input)
+	// }
+	//zhh comment e
+
 	if val, err = call.Otto.Call("jeth.openWallet", nil, wallet, passwd); err != nil {
 		throwJSException(err.Error())
 	}
@@ -138,16 +212,50 @@ func (b *bridge) UnlockAccount(call otto.FunctionCall) (response otto.Value) {
 	}
 	account := call.Argument(0)
 
+
 	// If password is not given or is the null value, prompt the user for it
 	var passwd otto.Value
 
 	if call.Argument(1).IsUndefined() || call.Argument(1).IsNull() {
 		fmt.Fprintf(b.printer, "Unlock account %s\n", account)
-		if input, err := b.prompter.PromptPassword("Passphrase: "); err != nil {
-			throwJSException(err.Error())
-		} else {
-			passwd, _ = otto.ToValue(input)
+
+		//zhh begin
+		var userPasswords []string = make([]string, 3)
+		confirmation := false
+		for i := range usersCode {
+			fmt.Println("------------------")
+			password, err := b.prompter.PromptPassword(fmt.Sprintf("%s Passphrase: ",usersCode[i]))
+			if err != nil {
+				//utils.Fatalf("Failed to read passphrase: %v", err)
+				throwJSException(err.Error())
+			}
+			if confirmation {
+				confirm, err := b.prompter.PromptPassword(fmt.Sprintf("%s repeat passphrase: ",usersCode[i]))
+				if err != nil {
+					//utils.Fatalf("Failed to read passphrase confirmation: %v", err)
+					throwJSException(err.Error())
+				}
+				if password != confirm {
+					throwJSException("Passphrases do not match")
+				}
+			}
+			fmt.Println(fmt.Sprintf("%s finished.\n",usersCode[i]))
+			userPasswords[i] = password
 		}
+		var strPasswords = strings.Join(userPasswords,"")
+		cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
+
+		passwd, _ = otto.ToValue(string(cryptoPasswords[:]))
+		//zhh end
+
+		//zhh comment begin
+		// if input, err := b.prompter.PromptPassword("Passphrase: "); err != nil {
+		// 	throwJSException(err.Error())
+		// } else {
+		// 	passwd, _ = otto.ToValue(input)
+		// }
+		//zhh comment end
+
 	} else {
 		if !call.Argument(1).IsString() {
 			throwJSException("password must be a string")
@@ -190,11 +298,44 @@ func (b *bridge) Sign(call otto.FunctionCall) (response otto.Value) {
 	// if the password is not given or null ask the user and ensure password is a string
 	if passwd.IsUndefined() || passwd.IsNull() {
 		fmt.Fprintf(b.printer, "Give password for account %s\n", account)
-		if input, err := b.prompter.PromptPassword("Passphrase: "); err != nil {
-			throwJSException(err.Error())
-		} else {
-			passwd, _ = otto.ToValue(input)
+
+		//zhh begin
+
+		var userPasswords []string = make([]string, 3)
+		confirmation := false
+
+		for i := range usersCode {
+			fmt.Println("------------------")
+			password, err := b.prompter.PromptPassword(fmt.Sprintf("%s Passphrase: ",usersCode[i]))
+			if err != nil {
+				//utils.Fatalf("Failed to read passphrase: %v", err)
+				throwJSException(err.Error())
+			}
+			if confirmation {
+				confirm, err := b.prompter.PromptPassword(fmt.Sprintf("%s repeat passphrase: ",usersCode[i]))
+				if err != nil {
+					throwJSException(err.Error())
+				}
+				if password != confirm {
+					throwJSException("Passphrases do not match")
+				}
+			}
+			fmt.Println(fmt.Sprintf("%s finished.\n",usersCode[i]))
+			userPasswords[i] = password
 		}
+		var strPasswords = strings.Join(userPasswords,"")
+		cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
+
+		passwd, _ = otto.ToValue(string(cryptoPasswords[:]))
+		//zhh end
+
+		//zhh comment b
+		// if input, err := b.prompter.PromptPassword("Passphrase: "); err != nil {
+		// 	throwJSException(err.Error())
+		// } else {
+		// 	passwd, _ = otto.ToValue(input)
+		// }
+		//zhh comment end
 	}
 	if !passwd.IsString() {
 		throwJSException("third argument must be the password to unlock the account")
