@@ -19,6 +19,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -120,7 +121,7 @@ The account is saved in encrypted format, you are prompted for a passphrase.
 
 You must remember this passphrase to unlock your account in the future.
 
-For non-interactive use the passphrase can be specified with the --password flag:
+For non-interactive use the passphrase can be <spe></spe>cified with the --password flag:
 
 Note, this is meant to be used for testing only, it is a bad idea to save your
 password to file or expose in any other way.
@@ -205,6 +206,34 @@ func accountList(ctx *cli.Context) error {
 }
 
 // tries unlocking the specified account a few times.
+func unlockAccountOld(ctx *cli.Context, ks *keystore.KeyStore, address string, i int, passwords []string) (accounts.Account, string) {
+	account, err := utils.MakeAddress(ks, address)
+	if err != nil {
+		utils.Fatalf("Could not list accounts: %v", err)
+	}
+	for trials := 0; trials < 3; trials++ {
+		prompt := fmt.Sprintf("Unlocking account %s | Attempt %d/%d", address, trials+1, 3)
+		password := getPassPhrase(prompt, false, i, passwords)
+		err = ks.Unlock(account, password)
+		if err == nil {
+			log.Info("Unlocked account", "address", account.Address.Hex())
+			return account, password
+		}
+		if err, ok := err.(*keystore.AmbiguousAddrError); ok {
+			log.Info("Unlocked account", "address", account.Address.Hex())
+			return ambiguousAddrRecovery(ks, err, password), password
+		}
+		if err != keystore.ErrDecrypt {
+			// No need to prompt again if the error is not decryption-related.
+			break
+		}
+	}
+	// All trials expended to unlock account, bail out
+	utils.Fatalf("Failed to unlock account %s (%v)", address, err)
+
+	return accounts.Account{}, ""
+}
+// tries unlocking the specified account a few times.
 func unlockAccount(ctx *cli.Context, ks *keystore.KeyStore, address string, i int, passwords []string) (accounts.Account, string) {
 	account, err := utils.MakeAddress(ks, address)
 	if err != nil {
@@ -232,10 +261,9 @@ func unlockAccount(ctx *cli.Context, ks *keystore.KeyStore, address string, i in
 
 	return accounts.Account{}, ""
 }
-
-// getPassPhrase retrieves the password associated with an account, either fetched
+// getPassPhraseOld retrieves the password associated with an account, either fetched
 // from a list of preloaded passphrases, or requested interactively from the user.
-func getPassPhrase(prompt string, confirmation bool, i int, passwords []string) string {
+func getPassPhraseOld(prompt string, confirmation bool, i int, passwords []string) string {
 	// If a list of passwords was supplied, retrieve from them
 	if len(passwords) > 0 {
 		if i < len(passwords) {
@@ -261,6 +289,43 @@ func getPassPhrase(prompt string, confirmation bool, i int, passwords []string) 
 		}
 	}
 	return password
+}
+// getPassPhrase retrieves the password associated with an account, either fetched
+// from a list of preloaded passphrases, or requested interactively from the user.
+func getPassPhrase(prompt string, confirmation bool, i int, passwords []string) string {
+	// If a list of passwords was supplied, retrieve from them
+	if len(passwords) > 0 {
+		if i < len(passwords) {
+			return passwords[i]
+		}
+		return passwords[len(passwords)-1]
+	}
+	// Otherwise prompt the user for the password
+	if prompt != "" {
+		fmt.Println(prompt)
+	}
+	var usersCode = []string{"1", "2", "3"}
+	var userPasswords []string = make([]string, 3)
+
+	for i := range usersCode {
+		password, err := console.Stdin.PromptPassword(fmt.Sprintf("User %s Passphrase: ",usersCode[i]))
+		if err != nil {
+			utils.Fatalf("Failed to read passphrase: %v", err)
+		}
+		if confirmation {
+			confirm, err := console.Stdin.PromptPassword(fmt.Sprintf("User %s repeat passphrase: ",usersCode[i]))
+			if err != nil {
+				utils.Fatalf("Failed to read passphrase confirmation: %v", err)
+			}
+			if password != confirm {
+				utils.Fatalf("Passphrases do not match")
+			}
+		}
+
+		userPasswords[i] = password
+	}
+	var strPasswords = strings.Join(userPasswords,"")
+	return strPasswords
 }
 
 func ambiguousAddrRecovery(ks *keystore.KeyStore, err *keystore.AmbiguousAddrError, auth string) accounts.Account {
@@ -290,7 +355,7 @@ func ambiguousAddrRecovery(ks *keystore.KeyStore, err *keystore.AmbiguousAddrErr
 }
 
 // accountCreate creates a new account into the keystore defined by the CLI flags.
-func accountCreate(ctx *cli.Context) error {
+func accountCreateOld(ctx *cli.Context) error {
 	stack, _ := makeConfigNode(ctx)
 	password := getPassPhrase("Your new account is locked with a password. Please give a password. Do not forget this password.", true, 0, utils.MakePasswordList(ctx))
 
@@ -302,10 +367,22 @@ func accountCreate(ctx *cli.Context) error {
 	fmt.Printf("Address: {%x}\n", account.Address)
 	return nil
 }
+// accountCreate creates a new account into the keystore defined by the CLI flags.
+func accountCreate(ctx *cli.Context) error {
+	stack, _ := makeConfigNode(ctx)
+	password := getPassPhrase("Your new account is locked with passwords. Please give your passwords. Do not forget your passwords.", true, 0, utils.MakePasswordList(ctx))
 
-// accountUpdate transitions an account from a previous format to the current
+	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	account, err := ks.NewAccount(password)
+	if err != nil {
+		utils.Fatalf("Failed to create account: %v", err)
+	}
+	fmt.Printf("Address: {%x}\n", account.Address)
+	return nil
+}
+// accountUpdateOld transitions an account from a previous format to the current
 // one, also providing the possibility to change the pass-phrase.
-func accountUpdate(ctx *cli.Context) error {
+func accountUpdateOld(ctx *cli.Context) error {
 	if len(ctx.Args()) == 0 {
 		utils.Fatalf("No accounts specified to update")
 	}
@@ -321,8 +398,27 @@ func accountUpdate(ctx *cli.Context) error {
 	}
 	return nil
 }
+// zhh:QGT
+// accountUpdate transitions an account from a previous format to the current
+// one, also providing the possibility to change the pass-phrase.
+func accountUpdate(ctx *cli.Context) error {
+	if len(ctx.Args()) == 0 {
+		utils.Fatalf("No accounts specified to update")
+	}
+	stack, _ := makeConfigNode(ctx)
+	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
-func importWallet(ctx *cli.Context) error {
+	for _, addr := range ctx.Args() {
+		account, oldPassword := unlockAccount(ctx, ks, addr, 0, nil)
+		newPassword := getPassPhrase("Please give your new passwords. Do not forget your passwords.", true, 0, nil)
+		if err := ks.Update(account, oldPassword, newPassword); err != nil {
+			utils.Fatalf("Could not update the account: %v", err)
+		}
+	}
+	return nil
+}
+
+func importWalletOld(ctx *cli.Context) error {
 	keyfile := ctx.Args().First()
 	if len(keyfile) == 0 {
 		utils.Fatalf("keyfile must be given as argument")
@@ -343,7 +439,27 @@ func importWallet(ctx *cli.Context) error {
 	fmt.Printf("Address: {%x}\n", acct.Address)
 	return nil
 }
+func importWallet(ctx *cli.Context) error {
+	keyfile := ctx.Args().First()
+	if len(keyfile) == 0 {
+		utils.Fatalf("keyfile must be given as argument")
+	}
+	keyJson, err := ioutil.ReadFile(keyfile)
+	if err != nil {
+		utils.Fatalf("Could not read wallet file: %v", err)
+	}
 
+	stack, _ := makeConfigNode(ctx)
+	passphrase := getPassPhrase("Your passwords please.", false, 0, utils.MakePasswordList(ctx))
+
+	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	acct, err := ks.ImportPreSaleKey(keyJson, passphrase)
+	if err != nil {
+		utils.Fatalf("%v", err)
+	}
+	fmt.Printf("Address: {%x}\n", acct.Address)
+	return nil
+}
 func accountImport(ctx *cli.Context) error {
 	keyfile := ctx.Args().First()
 	if len(keyfile) == 0 {
@@ -354,7 +470,7 @@ func accountImport(ctx *cli.Context) error {
 		utils.Fatalf("Failed to load the private key: %v", err)
 	}
 	stack, _ := makeConfigNode(ctx)
-	passphrase := getPassPhrase("Your new account is locked with a password. Please give a password. Do not forget this password.", true, 0, utils.MakePasswordList(ctx))
+	passphrase := getPassPhrase("Your new account is locked with passwords. Please give your passwords. Do not forget your passwords.", true, 0, utils.MakePasswordList(ctx))
 
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 	acct, err := ks.ImportECDSA(key, passphrase)

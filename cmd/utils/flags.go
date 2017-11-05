@@ -89,9 +89,9 @@ GLOBAL OPTIONS:
 func NewApp(gitCommit, usage string) *cli.App {
 	app := cli.NewApp()
 	app.Name = filepath.Base(os.Args[0])
-	app.Author = ""
+	app.Author = "andy zhou"
 	//app.Authors = nil
-	app.Email = ""
+	app.Email = "ablozhou@163.com"
 	app.Version = params.Version
 	if gitCommit != "" {
 		app.Version += "-" + gitCommit[:8]
