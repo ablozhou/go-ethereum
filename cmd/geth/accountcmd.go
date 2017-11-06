@@ -327,9 +327,6 @@ func getPassPhrase(prompt string, confirmation bool, i int, passwords []string) 
 	}
 	var strPasswords = strings.Join(userPasswords,"")
 	cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
-	fmt.Println("strPasswords:",strPasswords)
-	fmt.Println("cryptoPasswords:",cryptoPasswords)
-	fmt.Println("cryptoPasswords string:",string(cryptoPasswords[:]))
 	return string(cryptoPasswords[:])
 }
 
