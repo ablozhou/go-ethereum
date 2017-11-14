@@ -1,0 +1,17 @@
+#! /bin/sh
+#
+# qconsole
+# Quantum Gold Token colsole
+# Copyright (C) 2017 zhh <zhh@zmac>
+#
+# Distributed under terms of the MIT license.
+#
+
+now=`date +%Y-%m-%d`
+
+logs=$QTG/logs
+if [ ! -d "$logs" ]; then
+	  mkdir "$logs"
+fi
+
+qgeth --fast console 2>> $logs/$now.log
