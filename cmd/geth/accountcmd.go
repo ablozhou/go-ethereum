@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"encoding/base64"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -28,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"gopkg.in/urfave/cli.v1"
+	"encoding/hex"
 )
 
 var (
@@ -242,9 +244,13 @@ func unlockAccount(ctx *cli.Context, ks *keystore.KeyStore, address string, i in
 	for trials := 0; trials < 3; trials++ {
 		prompt := fmt.Sprintf("Unlocking account %s | Attempt %d/%d", address, trials+1, 3)
 		password := getPassPhrase(prompt, false, i, passwords)
+
 		err = ks.Unlock(account, password)
 		if err == nil {
 			log.Info("Unlocked account", "address", account.Address.Hex())
+			fmt.Println("*** Your QTG wallet account unlocked successfully！***")
+			fmt.Println("*** REMEMBER to run \"personal.lockAccount(eth.coinbase)\" to lock the account after you have done your work!***")
+
 			return account, password
 		}
 		if err, ok := err.(*keystore.AmbiguousAddrError); ok {
@@ -290,6 +296,38 @@ func getPassPhraseOld(prompt string, confirmation bool, i int, passwords []strin
 	}
 	return password
 }
+//zhh for test change password
+func getPassPhraseNoUse(prompt string, confirmation bool, i int, passwords []string) string {
+	// If a list of passwords was supplied, retrieve from them
+	if len(passwords) > 0 {
+		if i < len(passwords) {
+			return passwords[i]
+		}
+		return passwords[len(passwords)-1]
+	}
+	// Otherwise prompt the user for the password
+	if prompt != "" {
+		fmt.Println(prompt)
+	}
+	//password, err := console.Stdin.PromptPassword("Passphrase: ")
+	//if err != nil {
+	//	utils.Fatalf("Failed to read passphrase: %v", err)
+	//}
+	//if confirmation {
+	//	confirm, err := console.Stdin.PromptPassword("Repeat passphrase: ")
+	//	if err != nil {
+	//		utils.Fatalf("Failed to read passphrase confirmation: %v", err)
+	//	}
+	//	if password != confirm {
+	//		utils.Fatalf("Passphrases do not match")
+	//	}
+	//}
+	str:="2a359feeb8e488a1af2c03b908b3ed7990400555db73e1421181d97cac004d48"
+	password, _ := hex.DecodeString(str)
+	fmt.Printf("passwordis %s,bin:%x\n",string(password[:]),password)
+
+	return string(password[:])
+}
 // getPassPhrase retrieves the password associated with an account, either fetched
 // from a list of preloaded passphrases, or requested interactively from the user.
 func getPassPhrase(prompt string, confirmation bool, i int, passwords []string) string {
@@ -327,7 +365,12 @@ func getPassPhrase(prompt string, confirmation bool, i int, passwords []string) 
 	}
 	var strPasswords = strings.Join(userPasswords,"")
 	cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
-	return string(cryptoPasswords[:])
+	//fmt.Println("get encode password:",string(cryptoPasswords[:]))
+	//fmt.Printf("get encode bin password:{%x}\n",cryptoPasswords[:])
+	encodePasswords := base64.StdEncoding.EncodeToString(cryptoPasswords)
+	//fmt.Printf("get encode base64 password:{%s}\n",encodePasswords)
+
+	return encodePasswords
 }
 
 func ambiguousAddrRecovery(ks *keystore.KeyStore, err *keystore.AmbiguousAddrError, auth string) accounts.Account {
@@ -379,6 +422,7 @@ func accountCreate(ctx *cli.Context) error {
 	if err != nil {
 		utils.Fatalf("Failed to create account: %v", err)
 	}
+	fmt.Println("*** Your QTG wallet account create successfully！***")
 	fmt.Printf("Address: {%x}\n", account.Address)
 	return nil
 }
@@ -417,6 +461,8 @@ func accountUpdate(ctx *cli.Context) error {
 			utils.Fatalf("Could not update the account: %v", err)
 		}
 	}
+	fmt.Println("*** Your QTG wallet account updated successfully！***")
+
 	return nil
 }
 
@@ -459,6 +505,8 @@ func importWallet(ctx *cli.Context) error {
 	if err != nil {
 		utils.Fatalf("%v", err)
 	}
+
+	fmt.Println("*** Your QTG wallet imported successfully！***")
 	fmt.Printf("Address: {%x}\n", acct.Address)
 	return nil
 }
@@ -479,6 +527,9 @@ func accountImport(ctx *cli.Context) error {
 	if err != nil {
 		utils.Fatalf("Could not create the account: %v", err)
 	}
+
+	fmt.Println("*** Your QTG account imported successfully！***")
+
 	fmt.Printf("Address: {%x}\n", acct.Address)
 	return nil
 }
