@@ -14,4 +14,4 @@ if [ ! -d "$logs" ]; then
 	  mkdir "$logs"
 fi
 
-qgeth --fast console 2>> $logs/$now.log
+qgeth --fast --cache=1024 --port=0 console 2>> $logs/$now.log
