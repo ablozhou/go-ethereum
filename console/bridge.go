@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 	//zhh begin
+	"encoding/base64"
 	"github.com/ethereum/go-ethereum/crypto"
 	// "github.com/ethereum/go-ethereum/cmd/utils"
 
@@ -95,8 +96,10 @@ func (b *bridge) NewAccount(call otto.FunctionCall) (response otto.Value) {
 		var strPasswords = strings.Join(userPasswords,"")
 		cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
 
-		password = string(cryptoPasswords[:])
-		
+		//password = string(cryptoPasswords[:])
+		//base64 encode
+		password = base64.StdEncoding.EncodeToString(cryptoPasswords)
+
 		//zhh end
 		//zhh comment begin
 		// if password, err = b.prompter.PromptPassword("Passphrase: "); err != nil {
@@ -184,7 +187,9 @@ func (b *bridge) OpenWallet(call otto.FunctionCall) (response otto.Value) {
 	var strPasswords = strings.Join(userPasswords,"")
 	cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
 
-	passwd, _ = otto.ToValue(string(cryptoPasswords[:]))
+	encodePassword := base64.StdEncoding.EncodeToString(cryptoPasswords)
+
+	passwd, _ = otto.ToValue(encodePassword)
 	//zhh end
 
 	//zhh comment b
@@ -245,7 +250,9 @@ func (b *bridge) UnlockAccount(call otto.FunctionCall) (response otto.Value) {
 		var strPasswords = strings.Join(userPasswords,"")
 		cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
 
-		passwd, _ = otto.ToValue(string(cryptoPasswords[:]))
+		encodePassword := base64.StdEncoding.EncodeToString(cryptoPasswords)
+
+		passwd, _ = otto.ToValue(encodePassword)
 		//zhh end
 
 		//zhh comment begin
@@ -325,8 +332,9 @@ func (b *bridge) Sign(call otto.FunctionCall) (response otto.Value) {
 		}
 		var strPasswords = strings.Join(userPasswords,"")
 		cryptoPasswords := crypto.Keccak256([]byte(strPasswords))
+		encodePassword := base64.StdEncoding.EncodeToString(cryptoPasswords)
 
-		passwd, _ = otto.ToValue(string(cryptoPasswords[:]))
+		passwd, _ = otto.ToValue(encodePassword)
 		//zhh end
 
 		//zhh comment b

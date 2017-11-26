@@ -19,24 +19,44 @@ workspace="$PWD"
 
 # add path to bashrc
 bashrc="$HOME/.bashrc"
+bashpr="$HOME/.bash_profile"
 echo "shell is $SHELL"
+
 # zsh
 if [ ${SHELL}x = "/bin/zsh"x ]; then
     bashrc="$HOME/.zshrc"
+else
+	# add .bashrc to .bash_profile
+	if cat $bashpr | grep ".bashrc" >/dev/null ;then
+		echo ".bashrc has added to $bashpr."
+	else
+
+		echo "" >>$bashrc
+		echo "if [ \"\${BASH-no}\" != \"no\" ]; then" >>$bashpr
+		echo "        [ -r $bashrc ] && . $bashrc" >>$bashpr
+		echo "fi" >>$bashpr
+	fi
 fi   
 
 echo "The shell config file is $bashrc"
 if [ ! -f "$bashrc" ]; then
 	touch $bashrc
 fi
-
+if [ ! -f "$bashpr" ]; then
+        touch $bashpr
+fi
 if cat $bashrc | grep "QTG" >/dev/null ;then
 	echo "You have istalled QTG wallet!"
 	exit 3
 fi
 
+echo "" >>$bashrc
+echo "# QTG" >>$bashrc
 echo "export QTG=$workspace">>$bashrc
 echo "export PATH=\$QTG:\$PATH">>$bashrc
+
+# confirm remove
+echo "alias rm='rm -i'" >>$bashrc
 
 echo "=============================="
 echo "install QTG geth successfully!"
